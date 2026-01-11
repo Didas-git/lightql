@@ -1,0 +1,7 @@
+.{
+    .name = .lightql,
+    .version = "0.1.0",
+    .minimum_zig_version = "0.15.1",
+    .paths = .{""},
+    .fingerprint = 0xad97684f29fa0eb,
+}
