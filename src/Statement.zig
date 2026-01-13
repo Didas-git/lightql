@@ -2,7 +2,7 @@ const shared = @import("./shared.zig");
 const sqlite = @import("sqlite");
 const std = @import("std");
 
-const Database = @import("./root.zig");
+const Database = @import("./Database.zig");
 const parseResultCode = shared.parseResultCode;
 const ErrorCodes = shared.ErrorCodes;
 const OkCodes = shared.OkCodes;
