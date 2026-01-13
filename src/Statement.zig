@@ -98,7 +98,7 @@ pub fn textColumn(self: *const Statement, allocator: std.mem.Allocator, column: 
 }
 
 pub fn blobColumn(self: *const Statement, allocator: std.mem.Allocator, column: u8) ![]const u8 {
-    const blob = sqlite.sqlite3_column_blob(self.stmt, @as(c_int, column));
+    const blob: [*c]const u8 = @ptrCast(sqlite.sqlite3_column_blob(self.stmt, @as(c_int, column)));
     const len: usize = @intCast(sqlite.sqlite3_column_bytes(self.stmt, @as(c_int, column)));
 
     return try allocator.dupe(u8, blob[0..len]);
