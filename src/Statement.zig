@@ -127,3 +127,15 @@ pub fn dataCount(self: *const Statement) i32 {
 pub fn changes(self: *const Statement) i64 {
     return sqlite.sqlite3_changes64(self.db);
 }
+
+pub const ColumnType = enum(u8) {
+    integer = sqlite.SQLITE_INTEGER,
+    float = sqlite.SQLITE_FLOAT,
+    blob = sqlite.SQLITE_BLOB,
+    null = sqlite.SQLITE_NULL,
+    text = sqlite.SQLITE_TEXT,
+};
+
+pub fn is(self: *const Statement, column: u8, t: ColumnType) bool {
+    return sqlite.sqlite3_column_type(self.stmt, @intCast(column)) == @intFromEnum(t);
+}
