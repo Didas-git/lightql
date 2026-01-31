@@ -3,6 +3,7 @@ const std = @import("std");
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
+    const enable_fts5 = b.option(bool, "enable_fts5", "Whether to compile sqlite with FTS5") orelse false;
 
     const sqlite = b.addLibrary(.{
         .name = "sqlite",
@@ -15,6 +16,10 @@ pub fn build(b: *std.Build) void {
     });
 
     sqlite.addCSourceFile(.{ .file = b.path("sqlite/sqlite3.c") });
+
+    if (enable_fts5) {
+        sqlite.root_module.addCMacro("SQLITE_ENABLE_FTS5", "1");
+    }
 
     const lightql = b.addModule("lightql", .{
         .root_source_file = b.path("src/root.zig"),
