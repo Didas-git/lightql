@@ -4,6 +4,7 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
     const enable_fts5 = b.option(bool, "enable_fts5", "Whether to compile sqlite with FTS5") orelse false;
+    const enable_carray = b.option(bool, "enable_carray", "Whether to compile sqlite with CARRAY extension") orelse false;
 
     const sqlite = b.addLibrary(.{
         .name = "sqlite",
@@ -19,6 +20,10 @@ pub fn build(b: *std.Build) void {
 
     if (enable_fts5) {
         sqlite.root_module.addCMacro("SQLITE_ENABLE_FTS5", "1");
+    }
+
+    if (enable_carray) {
+        sqlite.root_module.addCMacro("SQLITE_ENABLE_CARRAY", "1");
     }
 
     const lightql = b.addModule("lightql", .{

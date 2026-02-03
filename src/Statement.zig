@@ -90,6 +90,56 @@ pub fn bindFloat(self: *const Statement, index: u8, float: f64) ErrorCodes!void 
     _ = try parseResultCode(result);
 }
 
+pub const CArrayType = enum(c_int) {
+    i32,
+    i64,
+    float,
+    text,
+    blob,
+};
+
+fn CArray(comptime T: CArrayType) type {
+    return switch (T) {
+        .blob, .text => []u8,
+        .i32 => []i32,
+        .i64 => []i64,
+        .float => []f64,
+    };
+}
+
+fn parseArrayType(comptime arr: anytype) CArrayType {
+    switch (@typeInfo(@TypeOf(arr))) {
+        .pointer => |ptr_info| {
+            if (ptr_info.size != .slice) @compileError("Only slices are allowed");
+            switch (@typeInfo(ptr_info.child)) {
+                .int => |int| {
+                    if (int.signedness == .unsigned and int.bits == 8) return .text;
+                    if (int.bits == 32) return .i32;
+                    if (int.bits == 64) return .i64;
+                    @compileError("Invalid integer size");
+                },
+                .float => |float| {
+                    if (float.bits == 64) return .float;
+                    @compileError("Invalid float size");
+                },
+                else => @compileError("Invalid array type"),
+            }
+        },
+        else => @compileError("Invalid type"),
+    }
+}
+
+/// For binding blobs use `bindCArray`
+pub fn bindCArrayAuto(self: *const Statement, index: u8, arr: anytype) ErrorCodes!void {
+    const result = sqlite.sqlite3_carray_bind(self.stmt, @intCast(index), arr.ptr, @as(c_int, @intCast(arr.len)), parseArrayType(arr), null);
+    _ = try parseResultCode(result);
+}
+
+pub fn bindCArray(self: *const Statement, index: u8, comptime T: CArrayType, arr: CArray(T)) ErrorCodes!void {
+    const result = sqlite.sqlite3_carray_bind(self.stmt, @intCast(index), arr.ptr, @as(c_int, @intCast(arr.len)), @intFromEnum(T), null);
+    _ = try parseResultCode(result);
+}
+
 pub fn textColumn(self: *const Statement, allocator: std.mem.Allocator, column: u8) ![]const u8 {
     const text = sqlite.sqlite3_column_text(self.stmt, @as(c_int, column));
     const len: usize = @intCast(sqlite.sqlite3_column_bytes(self.stmt, @as(c_int, column)));
