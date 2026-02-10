@@ -46,3 +46,13 @@ pub fn exec(self: *const Database, query: [:0]const u8) ErrorCodes!OkCodes {
     const result = sqlite.sqlite3_exec(self.db, query, null, null, null);
     return parseResultCode(result);
 }
+
+pub fn enableExtensionLoading(self: *const Database) !void {
+    const result = sqlite.sqlite3_db_config(self.db, sqlite.SQLITE_DBCONFIG_ENABLE_LOAD_EXTENSION, @as(c_int, 1), @as(c_int, 0));
+    if (result != sqlite.SQLITE_OK) return error.FailedToEnableExtensions;
+}
+
+pub fn loadExtension(self: *const Database, path: [:0]const u8, init_fn_name: [:0]const u8) !void {
+    const result = sqlite.sqlite3_load_extension(self.db, path, init_fn_name, null);
+    if (result != sqlite.SQLITE_OK) return error.FailedToLoadExtension;
+}
