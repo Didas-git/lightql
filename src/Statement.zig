@@ -197,6 +197,16 @@ pub const ColumnType = enum(u8) {
     text = sqlite.SQLITE_TEXT,
 };
 
-pub fn is(self: *const Statement, t: ColumnType) bool {
+pub fn columnIs(self: *const Statement, t: ColumnType) bool {
     return sqlite.sqlite3_column_type(self.stmt, @intCast(self.col)) == @intFromEnum(t);
+}
+
+/// If type is `t` advance col by 1
+pub fn columnIsSkip(self: *const Statement, t: ColumnType) bool {
+    if (sqlite.sqlite3_column_type(self.stmt, @intCast(self.col)) == @intFromEnum(t)) {
+        @constCast(self).col += 1;
+        return true;
+    }
+
+    return false;
 }
