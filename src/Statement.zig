@@ -11,6 +11,9 @@ const Statement = @This();
 
 stmt: *sqlite.sqlite3_stmt,
 db: *sqlite.sqlite3,
+/// Keeps track of the current binding
+pos: u8 = 1,
+col: u8 = 0,
 
 pub fn init(db: *Database, query: [:0]const u8) ErrorCodes!Statement {
     var stmt: ?*sqlite.sqlite3_stmt = undefined;
@@ -29,19 +32,21 @@ pub fn step(self: *const Statement) ErrorCodes!OkCodes {
     return parseResultCode(result);
 }
 
-pub fn clear(self: *const Statement) ErrorCodes!OkCodes {
+pub fn clear(self: *Statement) ErrorCodes!OkCodes {
+    self.pos = 1;
     const result = sqlite.sqlite3_clear_bindings(self.stmt);
     return parseResultCode(result);
 }
 
-pub fn reset(self: *const Statement) ErrorCodes!OkCodes {
+pub fn reset(self: *Statement) ErrorCodes!OkCodes {
+    self.col = 0;
     const result = sqlite.sqlite3_reset(self.stmt);
     return parseResultCode(result);
 }
 
-pub fn clearAndReset(self: *const Statement) void {
-    self.clear();
-    self.reset();
+pub fn clearAndReset(self: *const Statement) !void {
+    _ = try self.clear();
+    _ = try self.reset();
 }
 
 pub fn deinit(self: *const Statement) ErrorCodes!OkCodes {
@@ -49,44 +54,43 @@ pub fn deinit(self: *const Statement) ErrorCodes!OkCodes {
     return parseResultCode(result);
 }
 
-pub fn bindNull(self: *const Statement, index: u8) ErrorCodes!void {
-    const result = sqlite.sqlite3_bind_null(self.stmt, @intCast(index));
+pub fn bindNull(self: *Statement) ErrorCodes!void {
+    defer self.pos += 1;
+    const result = sqlite.sqlite3_bind_null(self.stmt, @intCast(self.pos));
     _ = try parseResultCode(result);
 }
 
-pub fn bindText(self: *const Statement, index: u8, text: []const u8) ErrorCodes!void {
+pub fn bindText(self: *Statement, text: []const u8) ErrorCodes!void {
+    defer self.pos += 1;
+
     // TODO: Check if transient really is the best option for us
-    const result = sqlite.sqlite3_bind_text(self.stmt, @intCast(index), text.ptr, @as(c_int, @intCast(text.len)), sqlite.SQLITE_TRANSIENT);
+    const result = sqlite.sqlite3_bind_text(self.stmt, @intCast(self.pos), text.ptr, @as(c_int, @intCast(text.len)), sqlite.SQLITE_TRANSIENT);
     _ = try parseResultCode(result);
 }
 
-pub fn bindBlob(self: *const Statement, index: u8, blob: []const u8) ErrorCodes!void {
+pub fn bindBlob(self: *Statement, blob: []const u8) ErrorCodes!void {
+    defer self.pos += 1;
+
     // TODO: Check if transient really is the best option for us
-    const result = sqlite.sqlite3_bind_blob(self.stmt, @intCast(index), blob.ptr, @as(c_int, @intCast(blob.len)), null);
+    const result = sqlite.sqlite3_bind_blob(self.stmt, @intCast(self.pos), blob.ptr, @as(c_int, @intCast(blob.len)), null);
     _ = try parseResultCode(result);
 }
 
-pub fn bindNumber(self: *const Statement, T: type, index: u8, number: T) ErrorCodes!void {
-    return switch (@typeInfo(T)) {
-        // TODO: Integers and floats bigger than 64bits should be bound as blob
-        .int, .comptime_int => self.bindInt(index, @as(i64, number)),
-        .float, .comptime_float => self.bindFloat(index, @as(f64, number)),
-        else => @compileError("Invalid type"),
-    };
-}
-
-pub fn bindInt(self: *const Statement, index: u8, int: i64) ErrorCodes!void {
-    const result = sqlite.sqlite3_bind_int64(self.stmt, @intCast(index), int);
+pub fn bindInt(self: *Statement, int: i64) ErrorCodes!void {
+    defer self.pos += 1;
+    const result = sqlite.sqlite3_bind_int64(self.stmt, @intCast(self.pos), int);
     _ = try parseResultCode(result);
 }
 
-pub fn bindUInt(self: *const Statement, index: u8, int: u64) ErrorCodes!void {
-    const result = sqlite.sqlite3_bind_int64(self.stmt, @intCast(index), @bitCast(int));
+pub fn bindUInt(self: *Statement, int: u64) ErrorCodes!void {
+    defer self.pos += 1;
+    const result = sqlite.sqlite3_bind_int64(self.stmt, @intCast(self.pos), @bitCast(int));
     _ = try parseResultCode(result);
 }
 
-pub fn bindFloat(self: *const Statement, index: u8, float: f64) ErrorCodes!void {
-    const result = sqlite.sqlite3_bind_double(self.stmt, @intCast(index), float);
+pub fn bindFloat(self: *Statement, float: f64) ErrorCodes!void {
+    defer self.pos += 1;
+    const result = sqlite.sqlite3_bind_double(self.stmt, @intCast(self.pos), float);
     _ = try parseResultCode(result);
 }
 
@@ -130,40 +134,43 @@ fn parseArrayType(comptime arr: anytype) CArrayType {
 }
 
 /// For binding blobs use `bindCArray`
-pub fn bindCArrayAuto(self: *const Statement, index: u8, arr: anytype) ErrorCodes!void {
-    const result = sqlite.sqlite3_carray_bind(self.stmt, @intCast(index), arr.ptr, @as(c_int, @intCast(arr.len)), parseArrayType(arr), null);
+pub fn bindCArrayAuto(self: *const Statement, arr: anytype) ErrorCodes!void {
+    defer self.pos += 1;
+    const result = sqlite.sqlite3_carray_bind(self.stmt, @intCast(self.pos), arr.ptr, @as(c_int, @intCast(arr.len)), parseArrayType(arr), null);
     _ = try parseResultCode(result);
 }
 
-pub fn bindCArray(self: *const Statement, index: u8, comptime T: CArrayType, arr: CArray(T)) ErrorCodes!void {
-    const result = sqlite.sqlite3_carray_bind(self.stmt, @intCast(index), arr.ptr, @as(c_int, @intCast(arr.len)), @intFromEnum(T), null);
+pub fn bindCArray(self: *const Statement, comptime T: CArrayType, arr: CArray(T)) ErrorCodes!void {
+    defer self.pos += 1;
+    const result = sqlite.sqlite3_carray_bind(self.stmt, @intCast(self.pos), arr.ptr, @as(c_int, @intCast(arr.len)), @intFromEnum(T), null);
     _ = try parseResultCode(result);
 }
 
-pub fn textColumn(self: *const Statement, allocator: std.mem.Allocator, column: u8) ![]const u8 {
-    const text = sqlite.sqlite3_column_text(self.stmt, @as(c_int, column));
-    const len: usize = @intCast(sqlite.sqlite3_column_bytes(self.stmt, @as(c_int, column)));
+pub fn textColumn(self: *Statement, allocator: std.mem.Allocator) ![]const u8 {
+    defer self.col += 1;
+    const text = sqlite.sqlite3_column_text(self.stmt, @intCast(self.col));
+    const len: usize = @intCast(sqlite.sqlite3_column_bytes(self.stmt, @intCast(self.col)));
 
     return try allocator.dupe(u8, text[0..len]);
 }
 
-pub fn blobColumn(self: *const Statement, allocator: std.mem.Allocator, column: u8) ![]const u8 {
-    const blob: [*c]const u8 = @ptrCast(sqlite.sqlite3_column_blob(self.stmt, @as(c_int, column)));
-    const len: usize = @intCast(sqlite.sqlite3_column_bytes(self.stmt, @as(c_int, column)));
+pub fn blobColumn(self: *Statement, allocator: std.mem.Allocator) ![]const u8 {
+    const blob: [*c]const u8 = @ptrCast(sqlite.sqlite3_column_blob(self.stmt, @intCast(self.col)));
+    const len: usize = @intCast(sqlite.sqlite3_column_bytes(self.stmt, @intCast(self.col)));
 
     return try allocator.dupe(u8, blob[0..len]);
 }
 
-pub fn intColumn(self: *const Statement, column: u8) i64 {
-    return sqlite.sqlite3_column_int64(self.stmt, @as(c_int, column));
+pub fn intColumn(self: *Statement) i64 {
+    return sqlite.sqlite3_column_int64(self.stmt, @intCast(self.col));
 }
 
-pub fn uIntColumn(self: *const Statement, column: u8) u64 {
-    return @bitCast(sqlite.sqlite3_column_int64(self.stmt, @as(c_int, column)));
+pub fn uIntColumn(self: *Statement) u64 {
+    return @bitCast(sqlite.sqlite3_column_int64(self.stmt, @intCast(self.col)));
 }
 
-pub fn floatColumn(self: *const Statement, column: u8) f64 {
-    return sqlite.sqlite3_column_double(self.stmt, @as(c_int, column));
+pub fn floatColumn(self: *Statement) f64 {
+    return sqlite.sqlite3_column_double(self.stmt, @intCast(self.col));
 }
 
 pub fn columnCount(self: *const Statement) i32 {
@@ -186,6 +193,6 @@ pub const ColumnType = enum(u8) {
     text = sqlite.SQLITE_TEXT,
 };
 
-pub fn is(self: *const Statement, column: u8, t: ColumnType) bool {
-    return sqlite.sqlite3_column_type(self.stmt, @intCast(column)) == @intFromEnum(t);
+pub fn is(self: *const Statement, t: ColumnType) bool {
+    return sqlite.sqlite3_column_type(self.stmt, @intCast(self.col)) == @intFromEnum(t);
 }
