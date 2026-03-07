@@ -1,4 +1,4 @@
-const sqlite = @import("sqlite");
+const sqlite = @import("sqlite").c;
 
 // https://www.sqlite.org/rescode.html
 pub fn parseResultCode(code: i32) ErrorCodes!OkCodes {

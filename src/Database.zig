@@ -1,5 +1,5 @@
 const shared = @import("./shared.zig");
-const sqlite = @import("sqlite");
+const sqlite = @import("sqlite").c;
 const std = @import("std");
 
 const parseResultCode = shared.parseResultCode;
